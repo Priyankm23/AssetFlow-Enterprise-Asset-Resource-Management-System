@@ -3,6 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const config = require('./config/env');
 const prisma = require('./config/prisma');
+const authRoutes = require('./modules/auth/auth.routes');
+const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
 const PORT = config.PORT;
@@ -19,7 +21,7 @@ if (config.NODE_ENV === 'development') {
 }
 
 // Health check endpoint
-app.get('/api/health', async (req, res) => {
+app.get('/api/v1/health', async (req, res) => {
   try {
     // Basic DB connection check
     await prisma.$queryRaw`SELECT 1`;
@@ -53,32 +55,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// Global 404 handler
-app.use((req, res, next) => {
-  res.status(404).json({
-    success: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: `Cannot ${req.method} ${req.url}`,
-    },
-  });
-});
+// Routes
+app.use('/api/v1/auth', authRoutes);
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error(err);
-  
-  const statusCode = err.statusCode || 500;
-  
-  res.status(statusCode).json({
-    success: false,
-    error: {
-      code: err.code || 'INTERNAL_SERVER_ERROR',
-      message: err.message || 'An unexpected error occurred',
-      ...(config.NODE_ENV === 'development' && { stack: err.stack }),
-    },
-  });
-});
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
 
 // Start server
 const server = app.listen(PORT, () => {
