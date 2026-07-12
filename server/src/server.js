@@ -4,6 +4,7 @@ const morgan = require('morgan');
 const config = require('./config/env');
 const prisma = require('./config/prisma');
 const authRoutes = require('./modules/auth/auth.routes');
+const orgRoutes = require('./modules/org/org.routes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -57,6 +58,7 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1', orgRoutes);
 
 // Error handling
 app.use(notFound);
