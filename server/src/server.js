@@ -7,6 +7,7 @@ const authRoutes = require('./modules/auth/auth.routes');
 const orgRoutes = require('./modules/org/org.routes');
 const assetRoutes = require('./modules/asset/asset.routes');
 const allocationRoutes = require('./modules/allocation/allocation.routes');
+const bookingRoutes = require('./modules/booking/booking.routes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -63,6 +64,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1', orgRoutes);
 app.use('/api/v1', assetRoutes);
 app.use('/api/v1', allocationRoutes);
+app.use('/api/v1', bookingRoutes);
 
 // Error handling
 app.use(notFound);
