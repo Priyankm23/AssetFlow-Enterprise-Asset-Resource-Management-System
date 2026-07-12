@@ -12,6 +12,7 @@ const maintenanceRoutes = require('./modules/maintenance/maintenance.routes');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const auditRoutes = require('./modules/audit/audit.routes');
 const reportsRoutes = require('./modules/reports/reports.routes');
+const notificationRoutes = require('./modules/notification/notification.routes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -73,6 +74,7 @@ app.use('/api/v1', maintenanceRoutes);
 app.use('/api/v1', dashboardRoutes);
 app.use('/api/v1', auditRoutes);
 app.use('/api/v1', reportsRoutes);
+app.use('/api/v1', notificationRoutes);
 
 // Error handling
 app.use(notFound);

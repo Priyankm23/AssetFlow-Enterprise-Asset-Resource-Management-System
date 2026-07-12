@@ -46,7 +46,7 @@ export function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [filter, setFilter] = useState<'all' | 'alerts' | 'approvals' | 'bookings'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,7 +80,13 @@ export function NotificationsScreen() {
   if (loading) return <div><PageHeader title="Notifications & Activity" subtitle="Stay on top of events across your organization" /><LoadingState /></div>;
   if (error) return <div><PageHeader title="Notifications & Activity" /><ErrorState message={error} onRetry={load} /></div>;
 
-  const filtered = filter === 'unread' ? notifications.filter((n) => !n.read) : notifications;
+  const filtered = notifications.filter((n) => {
+    if (filter === 'all') return true;
+    if (filter === 'alerts') return n.type === 'overdue' || n.type === 'audit';
+    if (filter === 'approvals') return n.type === 'assignment' || n.type === 'maintenance' || n.type === 'transfer';
+    if (filter === 'bookings') return n.type === 'booking';
+    return true;
+  });
   const grouped = groupByDay(filtered);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -91,15 +97,27 @@ export function NotificationsScreen() {
           <div className="flex rounded-lg border border-canvas-400 overflow-hidden">
             <button
               onClick={() => setFilter('all')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${filter === 'all' ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 hover:bg-canvas-100'}`}
+              className={`px-3.5 py-1.5 text-xs font-medium transition-colors border-r border-canvas-400 ${filter === 'all' ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 hover:bg-canvas-100'}`}
             >
               All
             </button>
             <button
-              onClick={() => setFilter('unread')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${filter === 'unread' ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 hover:bg-canvas-100'}`}
+              onClick={() => setFilter('alerts')}
+              className={`px-3.5 py-1.5 text-xs font-medium transition-colors border-r border-canvas-400 ${filter === 'alerts' ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 hover:bg-canvas-100'}`}
             >
-              Unread {unreadCount > 0 && <span className="ml-1 px-1 py-0.5 rounded bg-accent-500 text-white text-[10px]">{unreadCount}</span>}
+              Alerts
+            </button>
+            <button
+              onClick={() => setFilter('approvals')}
+              className={`px-3.5 py-1.5 text-xs font-medium transition-colors border-r border-canvas-400 ${filter === 'approvals' ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 hover:bg-canvas-100'}`}
+            >
+              Approvals
+            </button>
+            <button
+              onClick={() => setFilter('bookings')}
+              className={`px-3.5 py-1.5 text-xs font-medium transition-colors ${filter === 'bookings' ? 'bg-ink-800 text-white' : 'bg-white text-ink-500 hover:bg-canvas-100'}`}
+            >
+              Bookings
             </button>
           </div>
           {unreadCount > 0 && (
@@ -115,8 +133,13 @@ export function NotificationsScreen() {
           {grouped.length === 0 ? (
             <EmptyState
               icon={Bell}
-              title={filter === 'unread' ? "No unread notifications" : "No notifications yet"}
-              description={filter === 'unread' ? "You're all caught up!" : "Notifications about assignments, maintenance, bookings, and more will appear here"}
+              title={
+                filter === 'alerts' ? "No alerts" :
+                filter === 'approvals' ? "No approvals" :
+                filter === 'bookings' ? "No bookings" :
+                "No notifications yet"
+              }
+              description="Notifications about assignments, maintenance, bookings, and more will appear here"
             />
           ) : (
             <div>

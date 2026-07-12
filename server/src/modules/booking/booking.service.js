@@ -74,7 +74,7 @@ const createBooking = async ({ assetId, bookedByUserId, departmentId, startTime,
     throw error;
   }
 
-  return await prisma.booking.create({
+  const created = await prisma.booking.create({
     data: {
       assetId,
       bookedByUserId,
@@ -84,6 +84,17 @@ const createBooking = async ({ assetId, bookedByUserId, departmentId, startTime,
       status: 'Upcoming',
     },
   });
+
+  // Trigger Notification
+  const notificationService = require('../notification/notification.service');
+  await notificationService.createNotification({
+    userId: bookedByUserId,
+    type: 'BookingConfirmed',
+    message: `Your booking for the asset is confirmed.`,
+    relatedEntityId: created.id,
+  }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+
+  return created;
 };
 
 /**
@@ -181,10 +192,21 @@ const cancelBooking = async (bookingId, userId, userRole) => {
     throw error;
   }
 
-  return await prisma.booking.update({
+  const cancelled = await prisma.booking.update({
     where: { id: bookingId },
     data: { status: 'Cancelled' },
   });
+
+  // Trigger Notification
+  const notificationService = require('../notification/notification.service');
+  await notificationService.createNotification({
+    userId: booking.bookedByUserId,
+    type: 'BookingCancelled',
+    message: `Your booking for the asset has been cancelled.`,
+    relatedEntityId: bookingId,
+  }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+
+  return cancelled;
 };
 
 /**

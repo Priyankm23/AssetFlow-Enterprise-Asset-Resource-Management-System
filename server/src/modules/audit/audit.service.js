@@ -208,14 +208,70 @@ const updateAuditItem = async (itemId, { result, notes }, checkedByUserId) => {
     throw error;
   }
 
-  return await prisma.auditItem.update({
+  const updatedItem = await prisma.auditItem.update({
     where: { id: itemId },
     data: {
       result,
       notes: notes || null,
       checkedByUserId,
+    },
+    include: {
+      asset: {
+        include: {
+          allocations: {
+            where: { status: 'Active' },
+            include: { holderUser: true }
+          }
+        }
+      }
     }
   });
+
+  // Trigger Notification
+  if (result === 'Missing' || result === 'Damaged') {
+    const notificationService = require('../notification/notification.service');
+    const asset = updatedItem.asset;
+    const activeAlloc = asset.allocations[0];
+    
+    // Notify the user currently holding the asset (if any)
+    if (activeAlloc?.holderUserId) {
+      await notificationService.createNotification({
+        userId: activeAlloc.holderUserId,
+        type: 'AuditDiscrepancy',
+        message: `Asset ${asset.name} (${asset.assetTag}) in your possession has been flagged as ${result.toLowerCase()} during an audit.`,
+        relatedEntityId: asset.id,
+      }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+    }
+
+    // Also notify the HOD of the department (if any)
+    const deptId = activeAlloc?.holderDepartmentId || activeAlloc?.holderUser?.departmentId;
+    if (deptId) {
+      const dept = await prisma.department.findUnique({
+        where: { id: deptId },
+        select: { headUserId: true }
+      });
+      if (dept?.headUserId && dept.headUserId !== activeAlloc?.holderUserId) {
+        await notificationService.createNotification({
+          userId: dept.headUserId,
+          type: 'AuditDiscrepancy',
+          message: `Asset ${asset.name} (${asset.assetTag}) belonging to your department has been flagged as ${result.toLowerCase()} during an audit.`,
+          relatedEntityId: asset.id,
+        }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+      }
+    }
+  }
+
+  // Map to clean response
+  return {
+    id: updatedItem.id,
+    auditCycleId: updatedItem.auditCycleId,
+    assetId: updatedItem.assetId,
+    checkedByUserId: updatedItem.checkedByUserId,
+    result: updatedItem.result,
+    notes: updatedItem.notes,
+    createdAt: updatedItem.createdAt,
+    updatedAt: updatedItem.updatedAt,
+  };
 };
 
 module.exports = {

@@ -90,6 +90,30 @@ const createAllocation = async ({ assetId, holderUserId, holderDepartmentId, exp
     }),
   ]);
 
+  // Trigger Notifications
+  const notificationService = require('../notification/notification.service');
+  if (holderUserId) {
+    await notificationService.createNotification({
+      userId: holderUserId,
+      type: 'AssetAssigned',
+      message: `${asset.name} (${asset.assetTag}) has been allocated to you.`,
+      relatedEntityId: assetId,
+    }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+  } else if (holderDepartmentId) {
+    const dept = await prisma.department.findUnique({
+      where: { id: holderDepartmentId },
+      select: { headUserId: true }
+    });
+    if (dept?.headUserId) {
+      await notificationService.createNotification({
+        userId: dept.headUserId,
+        type: 'AssetAssigned',
+        message: `${asset.name} (${asset.assetTag}) has been allocated to your department.`,
+        relatedEntityId: assetId,
+      }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+    }
+  }
+
   return allocation;
 };
 

@@ -64,6 +64,15 @@ const approveRequest = async (requestId, approvedByUserId) => {
     }),
   ]);
 
+  // Trigger Notification
+  const notificationService = require('../notification/notification.service');
+  await notificationService.createNotification({
+    userId: request.raisedByUserId,
+    type: 'MaintenanceApproved',
+    message: `Your maintenance request for the asset has been approved.`,
+    relatedEntityId: requestId,
+  }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+
   return updatedRequest;
 };
 
@@ -89,13 +98,24 @@ const rejectRequest = async (requestId, approvedByUserId) => {
     throw error;
   }
 
-  return await prisma.maintenanceRequest.update({
+  const rejected = await prisma.maintenanceRequest.update({
     where: { id: requestId },
     data: {
       status: 'Rejected',
       approvedByUserId,
     },
   });
+
+  // Trigger Notification
+  const notificationService = require('../notification/notification.service');
+  await notificationService.createNotification({
+    userId: request.raisedByUserId,
+    type: 'MaintenanceRejected',
+    message: `Your maintenance request for the asset has been rejected.`,
+    relatedEntityId: requestId,
+  }).catch(err => console.error('[NOTIFICATION CREATE ERROR]', err));
+
+  return rejected;
 };
 
 /**
