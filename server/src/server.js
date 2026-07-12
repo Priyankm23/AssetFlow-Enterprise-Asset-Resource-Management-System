@@ -5,6 +5,7 @@ const config = require('./config/env');
 const prisma = require('./config/prisma');
 const authRoutes = require('./modules/auth/auth.routes');
 const orgRoutes = require('./modules/org/org.routes');
+const assetRoutes = require('./modules/asset/asset.routes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -59,6 +60,7 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1', orgRoutes);
+app.use('/api/v1', assetRoutes);
 
 // Error handling
 app.use(notFound);
