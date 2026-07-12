@@ -37,7 +37,7 @@ function AppRoutes() {
   // Role-based route access map
   const allowedRoutes: Record<string, Route[]> = {
     Admin:         ['dashboard', 'org-setup', 'audit', 'reports', 'notifications'],
-    AssetManager:  ['dashboard', 'assets', 'asset-detail', 'allocation', 'maintenance', 'audit', 'reports', 'notifications'],
+    AssetManager:  ['dashboard', 'assets', 'asset-detail', 'allocation', 'maintenance', 'audit', 'notifications'],
     DepartmentHead:['dashboard', 'assets', 'asset-detail', 'allocation', 'booking', 'notifications'],
     Employee:      ['dashboard', 'assets', 'asset-detail', 'allocation', 'booking', 'maintenance', 'notifications'],
   };

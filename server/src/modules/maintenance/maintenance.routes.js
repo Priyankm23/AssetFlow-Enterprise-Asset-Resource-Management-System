@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../../middleware/auth');
 
 const router = express.Router();
 
+router.get('/maintenance-requests', authenticate, maintenanceController.getMaintenanceRequests);
 router.post('/maintenance-requests', authenticate, maintenanceController.createRequest);
 
 router.patch(

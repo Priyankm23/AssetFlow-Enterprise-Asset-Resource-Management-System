@@ -45,12 +45,16 @@ export function MaintenanceScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [r, a] = await Promise.all([
-        apiGet<MaintenanceRequest[]>('/maintenance-requests'),
-        apiGet<Asset[]>('/assets'),
+      const [reqRes, assetsRes] = await Promise.all([
+        apiGet<{ maintenanceRequests: MaintenanceRequest[] }>('/maintenance-requests'),
+        apiGet<{ assets: Asset[] } | Asset[]>('/assets'),
       ]);
-      setRequests(r);
-      setAssets(a);
+
+      const reqList = (reqRes as any).maintenanceRequests ?? [];
+      const assetList = Array.isArray(assetsRes) ? assetsRes : (assetsRes as any).assets ?? [];
+
+      setRequests(reqList);
+      setAssets(assetList);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -118,6 +122,11 @@ export function MaintenanceScreen() {
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${priorityColors[req.priority]}`}>{req.priority}</span>
                       </div>
                       <div className="text-sm font-medium text-ink-700 mb-1">{req.assetName}</div>
+                      {req.photoUrl && (
+                        <div className="mb-2 rounded overflow-hidden max-h-32 bg-canvas-200 flex items-center justify-center border border-canvas-400/40">
+                          <img src={req.photoUrl} alt={req.assetName} className="w-full h-full object-cover" />
+                        </div>
+                      )}
                       <div className="text-xs text-ink-500 leading-relaxed mb-2">{req.issueDescription}</div>
                       {req.technicianName && (
                         <div className="text-[10px] text-ink-400 flex items-center gap-1 mb-2">

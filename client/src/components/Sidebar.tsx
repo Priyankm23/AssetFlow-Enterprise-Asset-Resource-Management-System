@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
 
   // ── Admin + AssetManager ──
   { route: 'audit',         label: 'Audit',                icon: ClipboardCheck,  roles: ['Admin', 'AssetManager'] },
-  { route: 'reports',       label: 'Reports',               icon: BarChart3,       roles: ['Admin', 'AssetManager'] },
+  { route: 'reports',       label: 'Reports',               icon: BarChart3,       roles: ['Admin'] },
 ];
 
 export function Sidebar({ current, onNavigate }: { current: Route; onNavigate: (r: Route) => void }) {

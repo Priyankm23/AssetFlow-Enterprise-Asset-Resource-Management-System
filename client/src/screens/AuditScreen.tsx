@@ -20,7 +20,7 @@ const resultConfig = {
 
 export function AuditScreen() {
   const { hasRole } = useAuth();
-  const isAdmin = hasRole('Admin');
+  const isAuditor = hasRole('Admin', 'AssetManager');
   const [cycles, setCycles] = useState<AuditCycle[]>([]);
   const [items, setItems] = useState<AuditItem[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -37,19 +37,26 @@ export function AuditScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [c, u, d] = await Promise.all([
-        apiGet<AuditCycle[]>('/audit-cycles'),
-        apiGet<User[]>('/users'),
-        apiGet<Department[]>('/departments'),
+      const [cyclesRes, usersRes, deptsRes] = await Promise.all([
+        apiGet<{ auditCycles: AuditCycle[] } | AuditCycle[]>('/audit-cycles'),
+        apiGet<{ users: User[] } | User[]>('/users'),
+        apiGet<{ departments: Department[] } | Department[]>('/departments'),
       ]);
-      setCycles(c);
-      setUsers(u);
-      setDepartments(d);
-      const active = c.find((x) => x.status === 'in_progress') ?? c[0];
+
+      const cycleList = Array.isArray(cyclesRes) ? cyclesRes : (cyclesRes as any).auditCycles ?? [];
+      const userList = Array.isArray(usersRes) ? usersRes : (usersRes as any).users ?? [];
+      const deptList = Array.isArray(deptsRes) ? deptsRes : (deptsRes as any).departments ?? [];
+
+      setCycles(cycleList);
+      setUsers(userList);
+      setDepartments(deptList);
+
+      const active = cycleList.find((x) => x.status === 'in_progress') ?? cycleList[0];
       if (active) {
         setSelectedCycleId(active.id);
-        const items = await apiGet<AuditItem[]>(`/audit-items?cycleId=${active.id}`);
-        setItems(items);
+        const itemsRes = await apiGet<{ auditItems: AuditItem[] } | AuditItem[]>(`/audit-items?cycleId=${active.id}`);
+        const itemList = Array.isArray(itemsRes) ? itemsRes : (itemsRes as any).auditItems ?? [];
+        setItems(itemList);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
@@ -63,8 +70,9 @@ export function AuditScreen() {
   const selectCycle = async (id: string) => {
     setSelectedCycleId(id);
     try {
-      const items = await apiGet<AuditItem[]>(`/audit-items?cycleId=${id}`);
-      setItems(items);
+      const itemsRes = await apiGet<{ auditItems: AuditItem[] } | AuditItem[]>(`/audit-items?cycleId=${id}`);
+      const itemList = Array.isArray(itemsRes) ? itemsRes : (itemsRes as any).auditItems ?? [];
+      setItems(itemList);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load items');
     }
@@ -129,7 +137,7 @@ export function AuditScreen() {
   return (
     <div>
       <PageHeader title="Asset Audit" subtitle="Manage audit cycles and verify assets">
-        {isAdmin && <Button size="sm" onClick={() => setModalOpen(true)}><Plus className="w-3.5 h-3.5" /> New Audit Cycle</Button>}
+        {isAuditor && <Button size="sm" onClick={() => setModalOpen(true)}><Plus className="w-3.5 h-3.5" /> New Audit Cycle</Button>}
       </PageHeader>
 
       {/* Cycle selector */}
@@ -192,10 +200,10 @@ export function AuditScreen() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {selectedCycle.status === 'planned' && isAdmin && (
+                  {selectedCycle.status === 'planned' && isAuditor && (
                     <Button size="sm" onClick={() => startCycle(selectedCycle.id)}>Start Audit</Button>
                   )}
-                  {selectedCycle.status === 'in_progress' && isAdmin && (
+                  {selectedCycle.status === 'in_progress' && isAuditor && (
                     <Button size="sm" variant="danger" onClick={() => setCloseConfirm(selectedCycle.id)}>
                       <Lock className="w-3.5 h-3.5" /> Close Audit Cycle
                     </Button>
@@ -237,7 +245,7 @@ export function AuditScreen() {
                         <th className="text-left px-5 py-2.5 text-xs font-semibold text-ink-500 uppercase tracking-wide">Asset</th>
                         <th className="text-left px-5 py-2.5 text-xs font-semibold text-ink-500 uppercase tracking-wide">Expected Location</th>
                         <th className="text-left px-5 py-2.5 text-xs font-semibold text-ink-500 uppercase tracking-wide">Verification</th>
-                        {selectedCycle.status === 'in_progress' && isAdmin && (
+                        {selectedCycle.status === 'in_progress' && isAuditor && (
                           <th className="text-left px-5 py-2.5 text-xs font-semibold text-ink-500 uppercase tracking-wide">Actions</th>
                         )}
                       </tr>
@@ -261,7 +269,7 @@ export function AuditScreen() {
                               </span>
                               {item.notes && <div className="text-xs text-ink-400 mt-1">{item.notes}</div>}
                             </td>
-                            {selectedCycle.status === 'in_progress' && isAdmin && (
+                            {selectedCycle.status === 'in_progress' && isAuditor && (
                               <td className="px-5 py-3">
                                 <div className="flex gap-1.5">
                                   <button onClick={() => updateItem(item.id, 'Verified')} className="px-2 py-1 rounded-md text-[10px] font-medium bg-status-availableSoft text-status-available hover:bg-status-available/20 transition-colors">Verify</button>
@@ -286,7 +294,7 @@ export function AuditScreen() {
             icon={ClipboardCheck}
             title="No audit cycles yet"
             description="Create your first audit cycle to start verifying assets"
-            action={isAdmin && <Button size="sm" onClick={() => setModalOpen(true)}><Plus className="w-3.5 h-3.5" /> New Audit Cycle</Button>}
+            action={isAuditor && <Button size="sm" onClick={() => setModalOpen(true)}><Plus className="w-3.5 h-3.5" /> New Audit Cycle</Button>}
           />
         </Card>
       )}
@@ -314,7 +322,7 @@ export function AuditScreen() {
           <Input label="Start Date" type="date" value={newCycle.startDate} onChange={(e) => setNewCycle({ ...newCycle, startDate: e.target.value })} />
           <Input label="End Date" type="date" value={newCycle.endDate} onChange={(e) => setNewCycle({ ...newCycle, endDate: e.target.value })} />
           <div className="col-span-2">
-            <Input label="Auditor User IDs (comma-separated)" value={newCycle.auditorUserIds} onChange={(e) => setNewCycle({ ...newCycle, auditorUserIds: e.target.value })} placeholder="e.g. u2, u3" />
+            <Input label="Auditor User IDs (optional, comma-separated)" value={newCycle.auditorUserIds} onChange={(e) => setNewCycle({ ...newCycle, auditorUserIds: e.target.value })} placeholder="Leave blank to assign yourself as the auditor" />
             <div className="text-xs text-ink-300 mt-1">Available: {users.map((u) => `${u.id} (${u.name})`).join(', ')}</div>
           </div>
         </div>

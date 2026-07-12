@@ -112,6 +112,18 @@ const resolveRequest = async (req, res, next) => {
   }
 };
 
+const getMaintenanceRequests = async (req, res, next) => {
+  try {
+    const requests = await maintenanceService.listRequests(req.user);
+    res.status(200).json({
+      success: true,
+      data: { maintenanceRequests: requests },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createRequest,
   approveRequest,
@@ -119,4 +131,5 @@ module.exports = {
   assignRequest,
   startRequest,
   resolveRequest,
+  getMaintenanceRequests,
 };

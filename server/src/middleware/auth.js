@@ -92,6 +92,8 @@ const authorize = (roles = []) => {
       });
     }
 
+    console.log(`[AUTH CHECK] Path: ${req.method} ${req.originalUrl} | User: ${req.user.name} (${req.user.role}) | Allowed: [${roles.join(', ')}] | Status: ${roles.length && !roles.includes(req.user.role) ? 'DENIED (403)' : 'ALLOWED'}`);
+
     if (roles.length && !roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,

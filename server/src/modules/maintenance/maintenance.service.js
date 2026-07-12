@@ -199,6 +199,55 @@ const resolveRequest = async (requestId, { resolutionNotes }) => {
   return updatedRequest;
 };
 
+/**
+ * List maintenance requests with role-based scoping and status normalisation for client Kanban
+ */
+const listRequests = async (requestingUser) => {
+  const where = {};
+  if (requestingUser.role === 'DepartmentHead') {
+    where.OR = [
+      { raisedByUserId: requestingUser.id },
+      { raisedByUser: { departmentId: requestingUser.departmentId } }
+    ];
+  } else if (requestingUser.role === 'Employee') {
+    where.raisedByUserId = requestingUser.id;
+  }
+
+  const requests = await prisma.maintenanceRequest.findMany({
+    where,
+    include: {
+      asset: { select: { name: true, assetTag: true, photoUrl: true } },
+      raisedByUser: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const statusMap = {
+    Pending: 'Pending',
+    Approved: 'Approved',
+    TechnicianAssigned: 'Technician Assigned',
+    InProgress: 'In Progress',
+    Resolved: 'Resolved',
+    Rejected: 'Rejected',
+  };
+
+  return requests.map((r) => ({
+    id: r.id,
+    assetId: r.assetId,
+    assetTag: r.asset?.assetTag ?? '',
+    assetName: r.asset?.name ?? '',
+    raisedByUserId: r.raisedByUserId,
+    raisedByUserName: r.raisedByUser?.name ?? 'Unknown',
+    issueDescription: r.issueDescription,
+    priority: r.priority,
+    status: statusMap[r.status] || r.status,
+    photoUrl: r.asset?.photoUrl ?? undefined,
+    technicianName: r.technicianName,
+    resolutionNotes: r.resolutionNotes,
+    createdAt: r.createdAt.toISOString(),
+  }));
+};
+
 module.exports = {
   createRequest,
   approveRequest,
@@ -206,4 +255,5 @@ module.exports = {
   assignTechnician,
   startWork,
   resolveRequest,
+  listRequests,
 };

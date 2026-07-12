@@ -49,6 +49,7 @@ const getAssets = async (req, res, next) => {
       location,
       page: pageNum,
       limit: limitNum,
+      requestingUser: req.user,
     });
 
     res.status(200).json({
@@ -65,7 +66,7 @@ const getAssets = async (req, res, next) => {
  */
 const getAssetDetails = async (req, res, next) => {
   try {
-    const asset = await assetService.getAssetById(req.params.id);
+    const asset = await assetService.getAssetById(req.params.id, req.user);
 
     res.status(200).json({
       success: true,

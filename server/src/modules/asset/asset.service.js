@@ -80,19 +80,70 @@ const createAsset = async (data) => {
 /**
  * List assets with search, filters, and optional pagination
  */
-const listAssets = async ({ search, categoryId, status, departmentId, location, page, limit }) => {
+const listAssets = async ({ search, categoryId, status, departmentId, location, page, limit, requestingUser }) => {
   const skip = page && limit ? (page - 1) * limit : undefined;
   const take = page && limit ? limit : undefined;
   const where = {};
+  const conditions = [];
+
+  // Role-based visibility scoping
+  if (requestingUser) {
+    if (requestingUser.role === 'Employee') {
+      conditions.push({
+        OR: [
+          {
+            allocations: {
+              some: {
+                status: 'Active',
+                holderUserId: requestingUser.id,
+              },
+            },
+          },
+          {
+            isBookable: true,
+          },
+        ],
+      });
+    } else if (requestingUser.role === 'DepartmentHead') {
+      conditions.push({
+        OR: [
+          {
+            allocations: {
+              some: {
+                status: 'Active',
+                OR: [
+                  { holderDepartmentId: requestingUser.departmentId },
+                  {
+                    holderUser: {
+                      departmentId: requestingUser.departmentId,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          {
+            isBookable: true,
+          },
+        ],
+      });
+    }
+  }
 
   // Text search on assetTag, serialNumber, or name
   if (search) {
     const trimmedSearch = search.trim();
-    where.OR = [
-      { assetTag: { contains: trimmedSearch, mode: 'insensitive' } },
-      { name: { contains: trimmedSearch, mode: 'insensitive' } },
-      { serialNumber: { contains: trimmedSearch, mode: 'insensitive' } },
-    ];
+    conditions.push({
+      OR: [
+        { assetTag: { contains: trimmedSearch, mode: 'insensitive' } },
+        { name: { contains: trimmedSearch, mode: 'insensitive' } },
+        { serialNumber: { contains: trimmedSearch, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  if (conditions.length > 0) {
+    where.AND = conditions;
   }
 
   if (categoryId) {
@@ -201,6 +252,7 @@ const listAssets = async ({ search, categoryId, status, departmentId, location, 
       condition: asset.condition,
       status: asset.status,
       location: asset.location,
+      photoUrl: asset.photoUrl,
       isBookable: asset.isBookable,
       departmentId: deptId,
       departmentName: deptName,
@@ -219,7 +271,7 @@ const listAssets = async ({ search, categoryId, status, departmentId, location, 
 /**
  * Get full asset details by ID, including current holder and histories formatted for frontend
  */
-const getAssetById = async (id) => {
+const getAssetById = async (id, requestingUser) => {
   const asset = await prisma.asset.findUnique({
     where: { id },
     include: {
@@ -283,6 +335,30 @@ const getAssetById = async (id) => {
         userName: 'Department',
         departmentName: departmentName,
       };
+    }
+  }
+
+  // Role-based visibility check
+  if (requestingUser) {
+    if (requestingUser.role === 'Employee') {
+      const isAllocatedToMe = activeAllocation && activeAllocation.holderUserId === requestingUser.id;
+      if (!isAllocatedToMe && !asset.isBookable) {
+        const error = new Error('You do not have permission to view this asset');
+        error.statusCode = 403;
+        error.code = 'FORBIDDEN';
+        throw error;
+      }
+    } else if (requestingUser.role === 'DepartmentHead') {
+      const isAllocatedToMyDept = activeAllocation && (
+        activeAllocation.holderDepartmentId === requestingUser.departmentId ||
+        activeAllocation.holderUser?.departmentId === requestingUser.departmentId
+      );
+      if (!isAllocatedToMyDept && !asset.isBookable) {
+        const error = new Error('You do not have permission to view this asset');
+        error.statusCode = 403;
+        error.code = 'FORBIDDEN';
+        throw error;
+      }
     }
   }
 
@@ -361,6 +437,7 @@ const getAssetById = async (id) => {
     condition: asset.condition,
     status: asset.status,
     location: asset.location,
+    photoUrl: asset.photoUrl,
     isBookable: asset.isBookable,
     departmentId,
     departmentName,
