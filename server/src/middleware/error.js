@@ -27,6 +27,7 @@ const errorHandler = (err, req, res, next) => {
       code: err.code || 'INTERNAL_SERVER_ERROR',
       message: err.message || 'An unexpected error occurred',
       ...(err.details && { details: err.details }), // include validation details (e.g., Zod) if available
+      ...(err.currentHolder && { currentHolder: err.currentHolder }),
       ...(config.NODE_ENV === 'development' && { stack: err.stack }),
     },
   });
