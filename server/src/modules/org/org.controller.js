@@ -168,7 +168,7 @@ const updateUserRole = async (req, res, next) => {
       return next(error);
     }
 
-    const updatedUser = await orgService.changeUserRole(req.params.id, parsed.data.role);
+    const updatedUser = await orgService.changeUserRole(req.params.id, parsed.data.role, req.user);
     res.status(200).json({
       success: true,
       data: { user: updatedUser },
@@ -189,7 +189,7 @@ const updateUserStatus = async (req, res, next) => {
       return next(error);
     }
 
-    const updatedUser = await orgService.changeUserStatus(req.params.id, parsed.data.status);
+    const updatedUser = await orgService.changeUserStatus(req.params.id, parsed.data.status, req.user);
     res.status(200).json({
       success: true,
       data: { user: updatedUser },

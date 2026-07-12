@@ -22,8 +22,34 @@ const roleColors: Record<Role, string> = {
 const allRoles: Role[] = ['Employee', 'DepartmentHead', 'AssetManager', 'Admin'];
 
 export function OrgSetupScreen() {
-  const { hasRole } = useAuth();
+  const { user: loggedInUser, hasRole } = useAuth();
   const isAdmin = hasRole('Admin');
+  const isHOD = hasRole('DepartmentHead');
+
+  const canModifyRole = (targetUser: User) => {
+    if (isAdmin) return true;
+    if (isHOD && targetUser.departmentId === loggedInUser?.departmentId) {
+      return targetUser.role !== 'Admin' && targetUser.role !== 'AssetManager';
+    }
+    return false;
+  };
+
+  const canModifyStatus = (targetUser: User) => {
+    if (isAdmin) return true;
+    if (isHOD && targetUser.departmentId === loggedInUser?.departmentId) {
+      return targetUser.role !== 'Admin' && targetUser.role !== 'AssetManager';
+    }
+    return false;
+  };
+
+  const availableRolesForTarget = (targetUser: User) => {
+    if (isAdmin) return allRoles;
+    if (isHOD) {
+      return ['Employee', 'DepartmentHead'] as Role[];
+    }
+    return [targetUser.role];
+  };
+
   const [tab, setTab] = useState<Tab>('departments');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -40,14 +66,30 @@ export function OrgSetupScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [depts, cats, usrs] = await Promise.all([
-        apiGet<Department[]>('/departments'),
-        apiGet<Category[]>('/categories'),
-        apiGet<User[]>('/users'),
+      const [deptsData, catsData, usrsData] = await Promise.all([
+        apiGet<{ departments: Department[] }>('/departments'),
+        apiGet<{ categories: Category[] }>('/categories'),
+        apiGet<{ users: User[] }>('/users'),
       ]);
-      setDepartments(depts);
-      setCategories(cats);
-      setUsers(usrs);
+
+      const mappedDepts = deptsData.departments.map(d => ({
+        ...d,
+        headUserName: (d as any).headUser ? (d as any).headUser.name : undefined,
+        parentDepartmentName: (d as any).parentDepartment ? (d as any).parentDepartment.name : undefined,
+        status: d.status.toLowerCase() as any
+      }));
+
+      const mappedCats = catsData.categories;
+
+      const mappedUsers = usrsData.users.map(u => ({
+        ...u,
+        departmentName: (u as any).department ? (u as any).department.name : undefined,
+        status: u.status.toLowerCase() as any
+      }));
+
+      setDepartments(mappedDepts);
+      setCategories(mappedCats);
+      setUsers(mappedUsers);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -60,7 +102,7 @@ export function OrgSetupScreen() {
   const handleCreateDept = async () => {
     setCreating(true);
     try {
-      await apiPost('/departments', { name: newName, headUserId: newHead || undefined, parentDepartmentId: newParent || undefined, status: 'active' });
+      await apiPost('/departments', { name: newName, headUserId: newHead || undefined, parentDepartmentId: newParent || undefined });
       setModalOpen(false);
       setNewName('');
       setNewHead('');
@@ -98,7 +140,8 @@ export function OrgSetupScreen() {
 
   const handleStatusToggle = async (userId: string, status: 'active' | 'inactive') => {
     try {
-      await apiPatch(`/users/${userId}/status`, { status });
+      const serverStatus = status === 'active' ? 'Active' : 'Inactive';
+      await apiPatch(`/users/${userId}/status`, { status: serverStatus });
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
@@ -249,14 +292,14 @@ export function OrgSetupScreen() {
                       <td className="px-5 py-3 text-ink-500">{u.email}</td>
                       <td className="px-5 py-3 text-ink-600">{u.departmentName ?? '—'}</td>
                       <td className="px-5 py-3">
-                        {isAdmin ? (
+                        {canModifyRole(u) ? (
                           <div className="relative inline-block">
                             <select
                               value={u.role}
                               onChange={(e) => handleRoleChange(u.id, e.target.value as Role)}
                               className={`appearance-none pl-2.5 pr-7 py-1 rounded-md text-xs font-medium border cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-accent-400/30 ${roleColors[u.role]}`}
                             >
-                              {allRoles.map((r) => (
+                              {availableRolesForTarget(u).map((r) => (
                                 <option key={r} value={r} className="bg-white text-ink-700">{r}</option>
                               ))}
                             </select>
@@ -267,7 +310,7 @@ export function OrgSetupScreen() {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        {isAdmin ? (
+                        {canModifyStatus(u) ? (
                           <button
                             onClick={() => handleStatusToggle(u.id, u.status === 'active' ? 'inactive' : 'active')}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${u.status === 'active' ? 'bg-status-availableSoft text-status-available' : 'bg-status-retiredSoft text-status-retired'}`}

@@ -40,7 +40,7 @@ export function LoginScreen() {
 
   const fillDemo = () => {
     setEmail('priya@assetflow.io');
-    setPassword('demo');
+    setPassword('Password123!');
   };
 
   return (

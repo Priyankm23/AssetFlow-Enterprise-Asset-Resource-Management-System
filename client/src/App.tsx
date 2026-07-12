@@ -34,24 +34,36 @@ function AppRoutes() {
 
   const handleNavigate = (r: Route, p?: Record<string, string>) => navigate(r, p);
 
+  // Role-based route access map
+  const allowedRoutes: Record<string, Route[]> = {
+    Admin:         ['dashboard', 'org-setup', 'audit', 'reports', 'notifications'],
+    AssetManager:  ['dashboard', 'assets', 'asset-detail', 'allocation', 'maintenance', 'audit', 'reports', 'notifications'],
+    DepartmentHead:['dashboard', 'assets', 'asset-detail', 'allocation', 'booking', 'notifications'],
+    Employee:      ['dashboard', 'assets', 'asset-detail', 'allocation', 'booking', 'maintenance', 'notifications'],
+  };
+
+  const userRole = user.role ?? '';
+  const permitted = allowedRoutes[userRole] ?? ['dashboard'];
+  const effectiveRoute = permitted.includes(route) ? route : 'dashboard';
+
   const screen = (() => {
-    switch (route) {
-      case 'dashboard': return <DashboardScreen onNavigate={handleNavigate} />;
-      case 'org-setup': return <OrgSetupScreen />;
-      case 'assets': return <AssetsScreen onNavigate={handleNavigate} />;
+    switch (effectiveRoute) {
+      case 'dashboard':    return <DashboardScreen onNavigate={handleNavigate} />;
+      case 'org-setup':    return <OrgSetupScreen />;
+      case 'assets':       return <AssetsScreen onNavigate={handleNavigate} />;
       case 'asset-detail': return <AssetDetailScreen params={params} onNavigate={handleNavigate} />;
-      case 'allocation': return <AllocationScreen params={params} onNavigate={handleNavigate} />;
-      case 'booking': return <BookingScreen />;
-      case 'maintenance': return <MaintenanceScreen />;
-      case 'audit': return <AuditScreen />;
-      case 'reports': return <ReportsScreen />;
-      case 'notifications': return <NotificationsScreen />;
-      default: return <DashboardScreen onNavigate={handleNavigate} />;
+      case 'allocation':   return <AllocationScreen params={params} onNavigate={handleNavigate} />;
+      case 'booking':      return <BookingScreen />;
+      case 'maintenance':  return <MaintenanceScreen />;
+      case 'audit':        return <AuditScreen />;
+      case 'reports':      return <ReportsScreen />;
+      case 'notifications':return <NotificationsScreen />;
+      default:             return <DashboardScreen onNavigate={handleNavigate} />;
     }
   })();
 
   return (
-    <Layout current={route} onNavigate={handleNavigate}>
+    <Layout current={effectiveRoute} onNavigate={handleNavigate}>
       {screen}
     </Layout>
   );

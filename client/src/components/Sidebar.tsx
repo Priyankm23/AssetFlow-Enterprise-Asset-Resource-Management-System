@@ -17,16 +17,42 @@ import {
 import type { Route } from '../lib/router';
 import { useAuth } from '../lib/auth';
 
-const navItems: { route: Route; label: string; icon: typeof LayoutDashboard }[] = [
-  { route: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { route: 'org-setup', label: 'Organization Setup', icon: Building2 },
-  { route: 'assets', label: 'Assets', icon: Package },
-  { route: 'allocation', label: 'Allocation & Transfer', icon: ArrowLeftRight },
-  { route: 'booking', label: 'Resource Booking', icon: CalendarDays },
-  { route: 'maintenance', label: 'Maintenance', icon: Wrench },
-  { route: 'audit', label: 'Audit', icon: ClipboardCheck },
-  { route: 'reports', label: 'Reports', icon: BarChart3 },
-  { route: 'notifications', label: 'Notifications', icon: Bell },
+type Role = 'Admin' | 'AssetManager' | 'DepartmentHead' | 'Employee';
+
+interface NavItem {
+  route: Route;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles: Role[]; // which roles can see this item
+}
+
+const navItems: NavItem[] = [
+  // ── Visible to ALL ──
+  { route: 'dashboard',     label: 'Dashboard',           icon: LayoutDashboard, roles: ['Admin', 'AssetManager', 'DepartmentHead', 'Employee'] },
+  { route: 'notifications', label: 'Notifications',        icon: Bell,            roles: ['Admin', 'AssetManager', 'DepartmentHead', 'Employee'] },
+
+  // ── Admin only ──
+  { route: 'org-setup',     label: 'Organization Setup',  icon: Building2,       roles: ['Admin'] },
+
+  // ── AssetManager only ──
+  { route: 'assets',        label: 'Assets',               icon: Package,         roles: ['AssetManager'] },
+  { route: 'allocation',    label: 'Allocation & Transfer', icon: ArrowLeftRight,  roles: ['AssetManager'] },
+  { route: 'maintenance',   label: 'Maintenance',           icon: Wrench,          roles: ['AssetManager'] },
+
+  // ── Department Head ──
+  { route: 'assets',        label: 'Assets',               icon: Package,         roles: ['DepartmentHead'] },
+  { route: 'allocation',    label: 'Allocation & Transfer', icon: ArrowLeftRight,  roles: ['DepartmentHead'] },
+  { route: 'booking',       label: 'Resource Booking',      icon: CalendarDays,    roles: ['DepartmentHead'] },
+
+  // ── Employee ──
+  { route: 'assets',        label: 'Assets',               icon: Package,         roles: ['Employee'] },
+  { route: 'allocation',    label: 'Allocation & Transfer', icon: ArrowLeftRight,  roles: ['Employee'] },
+  { route: 'booking',       label: 'Resource Booking',      icon: CalendarDays,    roles: ['Employee'] },
+  { route: 'maintenance',   label: 'Maintenance',           icon: Wrench,          roles: ['Employee'] },
+
+  // ── Admin + AssetManager ──
+  { route: 'audit',         label: 'Audit',                icon: ClipboardCheck,  roles: ['Admin', 'AssetManager'] },
+  { route: 'reports',       label: 'Reports',               icon: BarChart3,       roles: ['Admin', 'AssetManager'] },
 ];
 
 export function Sidebar({ current, onNavigate }: { current: Route; onNavigate: (r: Route) => void }) {
@@ -37,6 +63,12 @@ export function Sidebar({ current, onNavigate }: { current: Route; onNavigate: (
     onNavigate(r);
     setMobileOpen(false);
   };
+
+  // Filter nav items by the current user's role, then deduplicate by route
+  const userRole = (user?.role ?? '') as Role;
+  const visibleNavItems = navItems
+    .filter((item) => item.roles.includes(userRole))
+    .filter((item, idx, arr) => arr.findIndex((x) => x.route === item.route) === idx);
 
   return (
     <>
@@ -71,7 +103,7 @@ export function Sidebar({ current, onNavigate }: { current: Route; onNavigate: (
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto scrollbar-thin">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = current === item.route;
             const Icon = item.icon;
             return (

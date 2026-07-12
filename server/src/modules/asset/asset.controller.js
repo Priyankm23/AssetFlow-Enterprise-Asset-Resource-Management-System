@@ -38,8 +38,8 @@ const getAssets = async (req, res, next) => {
   try {
     const { search, category, status, department, location, page, limit } = req.query;
 
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
+    const pageNum = page ? parseInt(page, 10) : undefined;
+    const limitNum = limit ? parseInt(limit, 10) : undefined;
 
     const result = await assetService.listAssets({
       search,

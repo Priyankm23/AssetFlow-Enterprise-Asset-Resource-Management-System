@@ -10,8 +10,9 @@ const statusConfig: Record<AssetStatus, { bg: string; text: string; dot: string;
   Disposed: { bg: 'bg-status-retiredSoft', text: 'text-status-retired', dot: 'bg-status-retired', label: 'Disposed' },
 };
 
-export function StatusBadge({ status, size = 'md' }: { status: AssetStatus; size?: 'sm' | 'md' }) {
-  const c = statusConfig[status];
+export function StatusBadge({ status, size = 'md' }: { status: any; size?: 'sm' | 'md' }) {
+  const normalized = status === 'UnderMaintenance' ? 'Under Maintenance' : status;
+  const c = statusConfig[normalized as AssetStatus] || statusConfig.Available;
   const sz = size === 'sm' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5';
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-md font-medium ${c.bg} ${c.text} ${sz}`}>
@@ -21,6 +22,7 @@ export function StatusBadge({ status, size = 'md' }: { status: AssetStatus; size
   );
 }
 
-export function getStatusConfig(status: AssetStatus) {
-  return statusConfig[status];
+export function getStatusConfig(status: any) {
+  const normalized = status === 'UnderMaintenance' ? 'Under Maintenance' : status;
+  return statusConfig[normalized as AssetStatus] || statusConfig.Available;
 }

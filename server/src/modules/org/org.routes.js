@@ -22,8 +22,8 @@ router.put('/categories/:id', authenticate, authorize(['Admin']), orgController.
 // ==========================================
 // EMPLOYEE DIRECTORY ENDPOINTS (Admin Only)
 // ==========================================
-router.get('/users', authenticate, authorize(['Admin']), orgController.getUsers);
-router.patch('/users/:id/role', authenticate, authorize(['Admin']), orgController.updateUserRole);
-router.patch('/users/:id/status', authenticate, authorize(['Admin']), orgController.updateUserStatus);
+router.get('/users', authenticate, orgController.getUsers);
+router.patch('/users/:id/role', authenticate, authorize(['Admin', 'DepartmentHead']), orgController.updateUserRole);
+router.patch('/users/:id/status', authenticate, authorize(['Admin', 'DepartmentHead']), orgController.updateUserStatus);
 
 module.exports = router;

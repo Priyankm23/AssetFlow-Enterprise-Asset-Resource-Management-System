@@ -49,14 +49,19 @@ export function registerUnauthorizedHandler(fn: () => void) {
 }
 
 async function realFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const isFormData = body instanceof FormData;
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (isFormData ? (body as any) : JSON.stringify(body)) : undefined,
   });
 
   let parsed: Envelope<T>;

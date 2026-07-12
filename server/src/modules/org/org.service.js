@@ -82,6 +82,17 @@ const createDepartment = async ({ name, headUserId, parentDepartmentId, status }
   // Validate department head if provided
   if (headUserId) {
     await validateDepartmentHead(headUserId);
+    
+    // Check if user is already a head of another department
+    const existingHead = await prisma.department.findFirst({
+      where: { headUserId },
+    });
+    if (existingHead) {
+      const error = new Error('Selected user is already heading another department');
+      error.statusCode = 400;
+      error.code = 'USER_ALREADY_DEPT_HEAD';
+      throw error;
+    }
   }
 
   // Validate parent department if provided
@@ -125,6 +136,20 @@ const updateDepartment = async (id, data) => {
   // Validate department head if updated
   if (data.headUserId) {
     await validateDepartmentHead(data.headUserId);
+    
+    // Check if user is already a head of another department
+    const existingHead = await prisma.department.findFirst({
+      where: {
+        headUserId: data.headUserId,
+        id: { not: id },
+      },
+    });
+    if (existingHead) {
+      const error = new Error('Selected user is already heading another department');
+      error.statusCode = 400;
+      error.code = 'USER_ALREADY_DEPT_HEAD';
+      throw error;
+    }
   }
 
   // Validate parent and circular dependency
@@ -282,7 +307,7 @@ const listUsers = async ({ departmentId, role, status }) => {
 /**
  * Promote/Change user role (Admin only)
  */
-const changeUserRole = async (userId, role) => {
+const changeUserRole = async (userId, role, requestingUser) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -292,6 +317,24 @@ const changeUserRole = async (userId, role) => {
     error.statusCode = 404;
     error.code = 'USER_NOT_FOUND';
     throw error;
+  }
+
+  // If requester is HOD, enforce department scope and role level boundaries
+  if (requestingUser.role === 'DepartmentHead') {
+    if (user.departmentId !== requestingUser.departmentId) {
+      const error = new Error('HOD can only modify users within their own department');
+      error.statusCode = 403;
+      error.code = 'UNAUTHORIZED_DEPARTMENT_ACCESS';
+      throw error;
+    }
+
+    const highPrivilegeRoles = ['Admin', 'AssetManager'];
+    if (highPrivilegeRoles.includes(user.role) || highPrivilegeRoles.includes(role)) {
+      const error = new Error('HOD cannot modify Admin or AssetManager roles');
+      error.statusCode = 403;
+      error.code = 'UNAUTHORIZED_ROLE_PROMOTION';
+      throw error;
+    }
   }
 
   return await prisma.user.update({
@@ -309,9 +352,9 @@ const changeUserRole = async (userId, role) => {
 };
 
 /**
- * Change user active status (Admin only)
+ * Change user active status
  */
-const changeUserStatus = async (userId, status) => {
+const changeUserStatus = async (userId, status, requestingUser) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -321,6 +364,24 @@ const changeUserStatus = async (userId, status) => {
     error.statusCode = 404;
     error.code = 'USER_NOT_FOUND';
     throw error;
+  }
+
+  // If requester is HOD, enforce department scope and role boundaries
+  if (requestingUser.role === 'DepartmentHead') {
+    if (user.departmentId !== requestingUser.departmentId) {
+      const error = new Error('HOD can only modify users within their own department');
+      error.statusCode = 403;
+      error.code = 'UNAUTHORIZED_DEPARTMENT_ACCESS';
+      throw error;
+    }
+
+    const highPrivilegeRoles = ['Admin', 'AssetManager'];
+    if (highPrivilegeRoles.includes(user.role)) {
+      const error = new Error('HOD cannot modify Admin or AssetManager status');
+      error.statusCode = 403;
+      error.code = 'UNAUTHORIZED_ROLE_MODIFICATION';
+      throw error;
+    }
   }
 
   return await prisma.user.update({

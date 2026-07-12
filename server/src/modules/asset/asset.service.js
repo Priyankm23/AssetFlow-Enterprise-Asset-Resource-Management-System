@@ -1,21 +1,20 @@
 const prisma = require('../../config/prisma');
 
 /**
- * Generate the next sequential Asset Tag (e.g., AF-0001, AF-0002)
- * @returns {Promise<string>} Next asset tag
+ * Generate a sequential Asset Tag (AF-XXXX)
  */
 const generateAssetTag = async () => {
-  // Find the lexicographically highest tag
   const lastAsset = await prisma.asset.findFirst({
-    orderBy: { assetTag: 'desc' },
-    select: { assetTag: true },
+    orderBy: {
+      assetTag: 'desc',
+    },
   });
 
   let nextNumber = 1;
   if (lastAsset && lastAsset.assetTag) {
-    const match = lastAsset.assetTag.match(/^AF-(\d+)$/);
-    if (match) {
-      nextNumber = parseInt(match[1], 10) + 1;
+    const lastTagNum = parseInt(lastAsset.assetTag.replace('AF-', ''), 10);
+    if (!isNaN(lastTagNum)) {
+      nextNumber = lastTagNum + 1;
     }
   }
 
@@ -43,20 +42,47 @@ const createAsset = async (data) => {
   const assetTag = await generateAssetTag();
 
   // Force default status as 'Available'
-  return await prisma.asset.create({
+  const asset = await prisma.asset.create({
     data: {
       ...data,
       assetTag,
       status: 'Available', // Force default on creation
     },
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
+
+  return {
+    id: asset.id,
+    tag: asset.assetTag,
+    name: asset.name,
+    categoryId: asset.categoryId,
+    categoryName: asset.category ? asset.category.name : 'Unknown',
+    serialNumber: asset.serialNumber,
+    acquisitionDate: asset.acquisitionDate ? asset.acquisitionDate.toISOString().split('T')[0] : null,
+    acquisitionCost: asset.acquisitionCost,
+    condition: asset.condition,
+    status: asset.status,
+    location: asset.location,
+    isBookable: asset.isBookable,
+    departmentId: null,
+    departmentName: null,
+    currentHolder: null,
+  };
 };
 
 /**
- * List assets with search, filters, and pagination
+ * List assets with search, filters, and optional pagination
  */
-const listAssets = async ({ search, categoryId, status, departmentId, location, page = 1, limit = 10 }) => {
-  const skip = (page - 1) * limit;
+const listAssets = async ({ search, categoryId, status, departmentId, location, page, limit }) => {
+  const skip = page && limit ? (page - 1) * limit : undefined;
+  const take = page && limit ? limit : undefined;
   const where = {};
 
   // Text search on assetTag, serialNumber, or name
@@ -82,7 +108,6 @@ const listAssets = async ({ search, categoryId, status, departmentId, location, 
   }
 
   // Filter assets currently allocated to a specific department
-  // (Either allocated to the department directly, or allocated to a user who belongs to the department)
   if (departmentId) {
     where.allocations = {
       some: {
@@ -110,9 +135,27 @@ const listAssets = async ({ search, categoryId, status, departmentId, location, 
             name: true,
           },
         },
+        allocations: {
+          where: { status: 'Active' },
+          include: {
+            holderUser: {
+              select: {
+                id: true,
+                name: true,
+                department: { select: { id: true, name: true } },
+              },
+            },
+            holderDepartment: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
       skip,
-      take: limit,
+      take,
       orderBy: {
         createdAt: 'desc',
       },
@@ -120,19 +163,61 @@ const listAssets = async ({ search, categoryId, status, departmentId, location, 
     prisma.asset.count({ where }),
   ]);
 
+  const formattedAssets = assets.map((asset) => {
+    const activeAlloc = asset.allocations[0] || null;
+    let deptId = null;
+    let deptName = null;
+    let currentHolder = null;
+
+    if (activeAlloc) {
+      if (activeAlloc.holderUser) {
+        deptId = activeAlloc.holderUser.department?.id || null;
+        deptName = activeAlloc.holderUser.department?.name || null;
+        currentHolder = {
+          userId: activeAlloc.holderUser.id,
+          userName: activeAlloc.holderUser.name,
+          departmentName: deptName || 'Unknown',
+        };
+      } else if (activeAlloc.holderDepartment) {
+        deptId = activeAlloc.holderDepartment.id;
+        deptName = activeAlloc.holderDepartment.name;
+        currentHolder = {
+          userId: '',
+          userName: 'Department',
+          departmentName: deptName,
+        };
+      }
+    }
+
+    return {
+      id: asset.id,
+      tag: asset.assetTag,
+      name: asset.name,
+      categoryId: asset.categoryId,
+      categoryName: asset.category ? asset.category.name : 'Unknown',
+      serialNumber: asset.serialNumber,
+      acquisitionDate: asset.acquisitionDate ? asset.acquisitionDate.toISOString().split('T')[0] : null,
+      acquisitionCost: asset.acquisitionCost,
+      condition: asset.condition,
+      status: asset.status,
+      location: asset.location,
+      isBookable: asset.isBookable,
+      departmentId: deptId,
+      departmentName: deptName,
+      currentHolder,
+    };
+  });
+
   return {
-    assets,
-    pagination: {
-      totalItems,
-      currentPage: page,
-      totalPages: Math.ceil(totalItems / limit),
-      limit,
-    },
+    assets: formattedAssets,
+    totalItems,
+    totalPages: limit ? Math.ceil(totalItems / limit) : 1,
+    currentPage: page || 1,
   };
 };
 
 /**
- * Get full asset details by ID, including current holder and histories
+ * Get full asset details by ID, including current holder and histories formatted for frontend
  */
 const getAssetById = async (id) => {
   const asset = await prisma.asset.findUnique({
@@ -166,6 +251,7 @@ const getAssetById = async (id) => {
           id: true,
           name: true,
           email: true,
+          department: { select: { name: true } },
         },
       },
       holderDepartment: {
@@ -178,23 +264,24 @@ const getAssetById = async (id) => {
   });
 
   let currentHolder = null;
+  let departmentId = null;
+  let departmentName = null;
+
   if (activeAllocation) {
     if (activeAllocation.holderUser) {
+      departmentName = activeAllocation.holderUser.department?.name || null;
       currentHolder = {
-        type: 'User',
-        id: activeAllocation.holderUser.id,
-        name: activeAllocation.holderUser.name,
-        email: activeAllocation.holderUser.email,
-        allocatedAt: activeAllocation.allocatedAt,
-        expectedReturnDate: activeAllocation.expectedReturnDate,
+        userId: activeAllocation.holderUser.id,
+        userName: activeAllocation.holderUser.name,
+        departmentName: departmentName || 'Unknown',
       };
     } else if (activeAllocation.holderDepartment) {
+      departmentId = activeAllocation.holderDepartment.id;
+      departmentName = activeAllocation.holderDepartment.name;
       currentHolder = {
-        type: 'Department',
-        id: activeAllocation.holderDepartment.id,
-        name: activeAllocation.holderDepartment.name,
-        allocatedAt: activeAllocation.allocatedAt,
-        expectedReturnDate: activeAllocation.expectedReturnDate,
+        userId: '',
+        userName: 'Department',
+        departmentName: departmentName,
       };
     }
   }
@@ -204,7 +291,12 @@ const getAssetById = async (id) => {
     where: { assetId: id },
     include: {
       holderUser: {
-        select: { id: true, name: true, email: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          department: { select: { name: true } },
+        },
       },
       holderDepartment: {
         select: { id: true, name: true },
@@ -214,6 +306,21 @@ const getAssetById = async (id) => {
       allocatedAt: 'desc',
     },
   });
+
+  const formattedAllocHistory = allocationHistory.map((al) => ({
+    id: al.id,
+    assetId: al.assetId,
+    assetTag: asset.assetTag,
+    assetName: asset.name,
+    holderUserId: al.holderUserId,
+    holderUserName: al.holderUser ? al.holderUser.name : (al.holderDepartment ? al.holderDepartment.name : 'Unknown'),
+    holderDepartmentId: al.holderDepartmentId,
+    holderDepartmentName: al.holderDepartment ? al.holderDepartment.name : (al.holderUser?.department?.name || ''),
+    allocatedAt: al.allocatedAt.toISOString(),
+    returnedAt: al.actualReturnDate ? al.actualReturnDate.toISOString() : null,
+    returnConditionNotes: al.returnConditionNotes,
+    status: al.status.toLowerCase(), // 'active' | 'returned' | 'overdue'
+  }));
 
   // Fetch maintenance history
   const maintenanceHistory = await prisma.maintenanceRequest.findMany({
@@ -231,11 +338,35 @@ const getAssetById = async (id) => {
     },
   });
 
+  const formattedMaintHistory = maintenanceHistory.map((m) => ({
+    id: m.id,
+    assetId: m.assetId,
+    assetTag: asset.assetTag,
+    issueDescription: m.issueDescription,
+    priority: m.priority,
+    status: m.status === 'InProgress' ? 'In Progress' : (m.status === 'TechnicianAssigned' ? 'Technician Assigned' : m.status),
+    createdAt: m.createdAt.toISOString(),
+    resolutionNotes: m.resolutionNotes,
+  }));
+
   return {
-    ...asset,
+    id: asset.id,
+    tag: asset.assetTag,
+    name: asset.name,
+    categoryId: asset.categoryId,
+    categoryName: asset.category ? asset.category.name : 'Unknown',
+    serialNumber: asset.serialNumber,
+    acquisitionDate: asset.acquisitionDate ? asset.acquisitionDate.toISOString().split('T')[0] : null,
+    acquisitionCost: asset.acquisitionCost,
+    condition: asset.condition,
+    status: asset.status,
+    location: asset.location,
+    isBookable: asset.isBookable,
+    departmentId,
+    departmentName,
     currentHolder,
-    allocationHistory,
-    maintenanceHistory,
+    allocationHistory: formattedAllocHistory,
+    maintenanceHistory: formattedMaintHistory,
   };
 };
 
@@ -270,10 +401,36 @@ const updateAsset = async (id, updateData) => {
   // Clean data to prevent modifying assetTag or status directly
   const { assetTag, status, ...cleanData } = updateData;
 
-  return await prisma.asset.update({
+  const updated = await prisma.asset.update({
     where: { id },
     data: cleanData,
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
+
+  return {
+    id: updated.id,
+    tag: updated.assetTag,
+    name: updated.name,
+    categoryId: updated.categoryId,
+    categoryName: updated.category ? updated.category.name : 'Unknown',
+    serialNumber: updated.serialNumber,
+    acquisitionDate: updated.acquisitionDate ? updated.acquisitionDate.toISOString().split('T')[0] : null,
+    acquisitionCost: updated.acquisitionCost,
+    condition: updated.condition,
+    status: updated.status,
+    location: updated.location,
+    isBookable: updated.isBookable,
+    departmentId: null,
+    departmentName: null,
+    currentHolder: null,
+  };
 };
 
 module.exports = {
