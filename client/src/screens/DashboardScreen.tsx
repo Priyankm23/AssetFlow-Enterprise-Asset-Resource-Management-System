@@ -56,8 +56,17 @@ export function DashboardScreen({
   onNavigate: (r: Route) => void;
 }) {
   const { user } = useAuth();
-  const canRegisterAsset =
-    user?.role === "Admin" || user?.role === "AssetManager";
+
+  // Admin's role is org-wide setup and oversight only (departments,
+  // categories, audit cycles, employee/role assignment, analytics).
+  // Register Asset, Book Resource, and Raise Maintenance are all
+  // operational actions belonging to AssetManager / DepartmentHead /
+  // Employee — Admin is explicitly excluded from all three, matching
+  // the role table in overview.md.
+  const canRegisterAsset = user?.role === "AssetManager";
+  const canBookResource = user?.role !== "Admin";
+  const canRaiseMaintenance = user?.role !== "Admin";
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,20 +123,24 @@ export function DashboardScreen({
             <Plus className="w-3.5 h-3.5" /> Register Asset
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="subtle"
-          onClick={() => onNavigate("booking")}
-        >
-          <BookOpen className="w-3.5 h-3.5" /> Book Resource
-        </Button>
-        <Button
-          size="sm"
-          variant="subtle"
-          onClick={() => onNavigate("maintenance")}
-        >
-          <WrenchIcon className="w-3.5 h-3.5" /> Raise Maintenance
-        </Button>
+        {canBookResource && (
+          <Button
+            size="sm"
+            variant="subtle"
+            onClick={() => onNavigate("booking")}
+          >
+            <BookOpen className="w-3.5 h-3.5" /> Book Resource
+          </Button>
+        )}
+        {canRaiseMaintenance && (
+          <Button
+            size="sm"
+            variant="subtle"
+            onClick={() => onNavigate("maintenance")}
+          >
+            <WrenchIcon className="w-3.5 h-3.5" /> Raise Maintenance
+          </Button>
+        )}
       </PageHeader>
 
       {/* KPI Row */}
