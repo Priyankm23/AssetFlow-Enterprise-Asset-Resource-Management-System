@@ -9,6 +9,7 @@ const assetRoutes = require('./modules/asset/asset.routes');
 const allocationRoutes = require('./modules/allocation/allocation.routes');
 const bookingRoutes = require('./modules/booking/booking.routes');
 const maintenanceRoutes = require('./modules/maintenance/maintenance.routes');
+const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const { notFound, errorHandler } = require('./middleware/error');
 
 const app = express();
@@ -67,6 +68,7 @@ app.use('/api/v1', assetRoutes);
 app.use('/api/v1', allocationRoutes);
 app.use('/api/v1', bookingRoutes);
 app.use('/api/v1', maintenanceRoutes);
+app.use('/api/v1', dashboardRoutes);
 
 // Error handling
 app.use(notFound);
