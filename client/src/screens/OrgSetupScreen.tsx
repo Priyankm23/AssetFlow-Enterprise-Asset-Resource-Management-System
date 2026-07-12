@@ -148,6 +148,16 @@ export function OrgSetupScreen() {
     }
   };
 
+  const handleDepartmentChange = async (userId: string, departmentId: string) => {
+    try {
+      await apiPatch(`/users/${userId}/department`, { departmentId: departmentId || null });
+      const dept = departments.find(d => d.id === departmentId);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, departmentId: departmentId || null, departmentName: dept ? dept.name : undefined } : u)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update department');
+    }
+  };
+
   const tabs: { key: Tab; label: string; icon: typeof Building2 }[] = [
     { key: 'departments', label: 'Departments', icon: Building2 },
     { key: 'categories', label: 'Categories', icon: Tag },
@@ -290,7 +300,25 @@ export function OrgSetupScreen() {
                         </div>
                       </td>
                       <td className="px-5 py-3 text-ink-500">{u.email}</td>
-                      <td className="px-5 py-3 text-ink-600">{u.departmentName ?? '—'}</td>
+                      <td className="px-5 py-3 text-ink-600">
+                        {isAdmin ? (
+                          <div className="relative inline-block w-full max-w-[180px]">
+                            <select
+                              value={u.departmentId ?? ''}
+                              onChange={(e) => handleDepartmentChange(u.id, e.target.value)}
+                              className="appearance-none w-full pl-2.5 pr-7 py-1 rounded-md text-xs font-medium border bg-white border-canvas-400 text-ink-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-400/30"
+                            >
+                              <option value="">No Department</option>
+                              {departments.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none opacity-60" />
+                          </div>
+                        ) : (
+                          u.departmentName ?? '—'
+                        )}
+                      </td>
                       <td className="px-5 py-3">
                         {canModifyRole(u) ? (
                           <div className="relative inline-block">

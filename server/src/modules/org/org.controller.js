@@ -6,6 +6,7 @@ const {
   updateCategorySchema,
   updateRoleSchema,
   updateUserStatusSchema,
+  updateUserDepartmentSchema,
 } = require('./org.validation');
 
 // ==========================================
@@ -199,6 +200,27 @@ const updateUserStatus = async (req, res, next) => {
   }
 };
 
+const updateUserDepartment = async (req, res, next) => {
+  try {
+    const parsed = updateUserDepartmentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const error = new Error('Validation failed');
+      error.statusCode = 400;
+      error.code = 'VALIDATION_ERROR';
+      error.details = parsed.error.format();
+      return next(error);
+    }
+
+    const updatedUser = await orgService.changeUserDepartment(req.params.id, parsed.data.departmentId, req.user);
+    res.status(200).json({
+      success: true,
+      data: { user: updatedUser },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDepartments,
   createDepartment,
@@ -210,4 +232,5 @@ module.exports = {
   getUsers,
   updateUserRole,
   updateUserStatus,
+  updateUserDepartment,
 };

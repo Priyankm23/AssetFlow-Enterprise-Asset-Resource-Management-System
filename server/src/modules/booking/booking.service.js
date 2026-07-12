@@ -64,6 +64,13 @@ const createBooking = async ({ assetId, bookedByUserId, departmentId, startTime,
     );
     error.statusCode = 409;
     error.code = 'BOOKING_OVERLAP';
+    error.conflictingBooking = {
+      id: conflict.id,
+      assetId: conflict.assetId,
+      startTime: conflict.startTime.toISOString(),
+      endTime: conflict.endTime.toISOString(),
+      status: conflict.status.toLowerCase(),
+    };
     throw error;
   }
 
@@ -108,6 +115,9 @@ const listBookings = async ({ assetId, from, to }) => {
   const bookings = await prisma.booking.findMany({
     where,
     include: {
+      asset: {
+        select: { name: true, assetTag: true },
+      },
       bookedByUser: {
         select: { id: true, name: true, email: true },
       },
@@ -120,12 +130,23 @@ const listBookings = async ({ assetId, from, to }) => {
     },
   });
 
-  // Dynamically update status on read
   const now = new Date();
-  return bookings.map((b) => ({
-    ...b,
-    status: computeDynamicStatus(b, now),
-  }));
+  return bookings.map((b) => {
+    const dynamicStatus = computeDynamicStatus(b, now);
+    return {
+      id: b.id,
+      assetId: b.assetId,
+      assetName: b.asset?.name ?? '',
+      assetTag: b.asset?.assetTag ?? '',
+      userId: b.bookedByUserId,
+      userName: b.bookedByUser?.name ?? 'Unknown',
+      departmentId: b.departmentId ?? undefined,
+      departmentName: b.department?.name ?? undefined,
+      startTime: b.startTime.toISOString(),
+      endTime: b.endTime.toISOString(),
+      status: dynamicStatus === 'Cancelled' ? 'cancelled' : 'active',
+    };
+  });
 };
 
 /**
@@ -208,6 +229,13 @@ const rescheduleBooking = async (bookingId, { startTime, endTime }, userId, user
     );
     error.statusCode = 409;
     error.code = 'BOOKING_OVERLAP';
+    error.conflictingBooking = {
+      id: conflict.id,
+      assetId: conflict.assetId,
+      startTime: conflict.startTime.toISOString(),
+      endTime: conflict.endTime.toISOString(),
+      status: conflict.status.toLowerCase(),
+    };
     throw error;
   }
 

@@ -28,6 +28,10 @@ const updateUserStatusSchema = z.object({
   }),
 });
 
+const updateUserDepartmentSchema = z.object({
+  departmentId: z.string().uuid('Invalid departmentId format').nullable().optional(),
+});
+
 module.exports = {
   createDepartmentSchema,
   updateDepartmentSchema,
@@ -35,4 +39,5 @@ module.exports = {
   updateCategorySchema,
   updateRoleSchema,
   updateUserStatusSchema,
+  updateUserDepartmentSchema,
 };

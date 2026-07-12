@@ -25,5 +25,6 @@ router.put('/categories/:id', authenticate, authorize(['Admin']), orgController.
 router.get('/users', authenticate, orgController.getUsers);
 router.patch('/users/:id/role', authenticate, authorize(['Admin', 'DepartmentHead']), orgController.updateUserRole);
 router.patch('/users/:id/status', authenticate, authorize(['Admin', 'DepartmentHead']), orgController.updateUserStatus);
+router.patch('/users/:id/department', authenticate, authorize(['Admin']), orgController.updateUserDepartment);
 
 module.exports = router;

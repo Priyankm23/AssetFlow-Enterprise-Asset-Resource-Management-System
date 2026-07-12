@@ -28,6 +28,7 @@ const createTransferRequestSchema = z.object({
   assetId: z.string().uuid('Invalid assetId format'),
   requestedToUserId: z.string().uuid('Invalid requestedToUserId format').nullable().optional(),
   requestedToDepartmentId: z.string().uuid('Invalid requestedToDepartmentId format').nullable().optional(),
+  reason: z.string().trim().nullable().optional(),
 }).refine(
   (data) => {
     const hasUser = !!data.requestedToUserId;

@@ -202,10 +202,11 @@ const getActivityFeed = async () => {
 
   // 4. Process transfers
   transfers.forEach((item) => {
+    const reasonText = item.reason ? ` (Reason: ${item.reason})` : '';
     feed.push({
       id: `transfer-${item.id}`,
       timestamp: item.createdAt.toISOString(),
-      description: `Transfer request initiated for ${item.asset.name} by ${item.requestedByUser.name}`,
+      description: `Transfer request initiated for ${item.asset.name} by ${item.requestedByUser.name}${reasonText}`,
       entityTag: item.asset.assetTag,
       type: 'transfer',
     });

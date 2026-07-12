@@ -215,6 +215,7 @@ model TransferRequest {
   requestedToDepartmentId String?        @db.Uuid
   requestedToDepartment   Department?    @relation(fields: [requestedToDepartmentId], references: [id])
   status                  TransferStatus
+  reason                  String?
   approvedByUserId        String?        @db.Uuid
   approvedByUser          User?          @relation("ApprovedBy", fields: [approvedByUserId], references: [id])
   createdAt               DateTime       @default(now())

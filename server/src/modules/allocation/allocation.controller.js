@@ -5,6 +5,24 @@ const {
   createTransferRequestSchema,
 } = require('./allocation.validation');
 
+const getAllocations = async (req, res, next) => {
+  try {
+    const allocations = await allocationService.listAllocations(req.user);
+    res.status(200).json({ success: true, data: { allocations } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getTransferRequests = async (req, res, next) => {
+  try {
+    const transfers = await allocationService.listTransferRequests(req.user);
+    res.status(200).json({ success: true, data: { transfers } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const allocateAsset = async (req, res, next) => {
   try {
     const parsed = createAllocationSchema.safeParse(req.body);
@@ -113,6 +131,8 @@ const rejectTransfer = async (req, res, next) => {
 };
 
 module.exports = {
+  getAllocations,
+  getTransferRequests,
   allocateAsset,
   returnAsset,
   requestTransfer,

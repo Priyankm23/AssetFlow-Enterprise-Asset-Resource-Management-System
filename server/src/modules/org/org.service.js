@@ -398,6 +398,54 @@ const changeUserStatus = async (userId, status, requestingUser) => {
   });
 };
 
+/**
+ * Change user department assignment (Admin only)
+ */
+const changeUserDepartment = async (userId, departmentId, requestingUser) => {
+  if (requestingUser.role !== 'Admin') {
+    const error = new Error('Only admins can assign employees to departments');
+    error.statusCode = 403;
+    error.code = 'UNAUTHORIZED_DEPARTMENT_ASSIGNMENT';
+    throw error;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    error.code = 'USER_NOT_FOUND';
+    throw error;
+  }
+
+  if (departmentId) {
+    const dept = await prisma.department.findUnique({
+      where: { id: departmentId },
+    });
+    if (!dept) {
+      const error = new Error('Department not found');
+      error.statusCode = 404;
+      error.code = 'DEPT_NOT_FOUND';
+      throw error;
+    }
+  }
+
+  return await prisma.user.update({
+    where: { id: userId },
+    data: { departmentId: departmentId || null },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      departmentId: true,
+      status: true,
+    },
+  });
+};
+
 module.exports = {
   listDepartments,
   createDepartment,
@@ -409,4 +457,5 @@ module.exports = {
   listUsers,
   changeUserRole,
   changeUserStatus,
+  changeUserDepartment,
 };

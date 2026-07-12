@@ -11,12 +11,13 @@ export class ApiError extends Error {
   status: number;
   details?: Record<string, string>;
   currentHolder?: unknown;
+  conflictingBooking?: unknown;
 
   constructor(
     message: string,
     code: string,
     status: number,
-    extras?: { details?: Record<string, string>; currentHolder?: unknown },
+    extras?: { details?: Record<string, string>; currentHolder?: unknown; conflictingBooking?: unknown },
   ) {
     super(message);
     this.name = 'ApiError';
@@ -25,6 +26,7 @@ export class ApiError extends Error {
     if (extras) {
       this.details = extras.details;
       this.currentHolder = extras.currentHolder;
+      this.conflictingBooking = extras.conflictingBooking;
     }
   }
 }
@@ -76,6 +78,7 @@ async function realFetch<T>(method: string, path: string, body?: unknown): Promi
     throw new ApiError(parsed.error.message, parsed.error.code, res.status, {
       details: parsed.error.details,
       currentHolder: parsed.error.currentHolder,
+      conflictingBooking: (parsed.error as any).conflictingBooking,
     });
   }
   return parsed.data;

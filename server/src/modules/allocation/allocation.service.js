@@ -23,7 +23,7 @@ const createAllocation = async ({ assetId, holderUserId, holderDepartmentId, exp
     },
     include: {
       holderUser: {
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, department: { select: { name: true } } },
       },
       holderDepartment: {
         select: { id: true, name: true },
@@ -41,15 +41,12 @@ const createAllocation = async ({ assetId, holderUserId, holderDepartmentId, exp
     error.code = 'ASSET_ALREADY_ALLOCATED';
     error.currentHolder = activeAllocation.holderUser
       ? {
-          type: 'User',
-          id: activeAllocation.holderUser.id,
-          name: activeAllocation.holderUser.name,
-          email: activeAllocation.holderUser.email,
+          userName: activeAllocation.holderUser.name,
+          departmentName: activeAllocation.holderUser.department?.name ?? 'Unknown',
         }
       : {
-          type: 'Department',
-          id: activeAllocation.holderDepartment.id,
-          name: activeAllocation.holderDepartment.name,
+          userName: activeAllocation.holderDepartment.name,
+          departmentName: 'Department',
         };
     throw error;
   }
@@ -139,7 +136,7 @@ const returnAllocation = async (allocationId, { returnConditionNotes }) => {
 /**
  * Create a transfer request
  */
-const createTransferRequest = async ({ assetId, requestedByUserId, requestedToUserId, requestedToDepartmentId }) => {
+const createTransferRequest = async ({ assetId, requestedByUserId, requestedToUserId, requestedToDepartmentId, reason }) => {
   // Check if asset has an active allocation
   const activeAllocation = await prisma.allocation.findFirst({
     where: {
@@ -184,6 +181,7 @@ const createTransferRequest = async ({ assetId, requestedByUserId, requestedToUs
       requestedByUserId,
       requestedToUserId: requestedToUserId || null,
       requestedToDepartmentId: requestedToDepartmentId || null,
+      reason: reason || null,
       status: 'Requested',
     },
   });
@@ -312,10 +310,113 @@ const rejectTransferRequest = async (requestId, approvedByUserId, userRole, user
   });
 };
 
+/**
+ * List all active + overdue allocations (with asset and holder details)
+ */
+const listAllocations = async (requestingUser) => {
+  const whereClause = { status: 'Active' };
+
+  if (requestingUser.role === 'DepartmentHead') {
+    whereClause.OR = [
+      { holderDepartmentId: requestingUser.departmentId },
+      { holderUser: { departmentId: requestingUser.departmentId } }
+    ];
+  } else if (requestingUser.role === 'Employee') {
+    whereClause.holderUserId = requestingUser.id;
+  }
+
+  const allocations = await prisma.allocation.findMany({
+    where: whereClause,
+    include: {
+      asset: { select: { id: true, assetTag: true, name: true } },
+      holderUser: { select: { id: true, name: true, department: { select: { name: true } } } },
+      holderDepartment: { select: { id: true, name: true } },
+    },
+    orderBy: { allocatedAt: 'desc' },
+  });
+
+  const now = new Date();
+
+  return allocations.map((al) => {
+    const isOverdue =
+      al.expectedReturnDate != null && new Date(al.expectedReturnDate) < now;
+
+    return {
+      id: al.id,
+      assetId: al.assetId,
+      assetTag: al.asset?.assetTag ?? '',
+      assetName: al.asset?.name ?? '',
+      holderUserId: al.holderUserId,
+      holderUserName: al.holderUser?.name ?? null,
+      holderDepartmentId: al.holderDepartmentId,
+      holderDepartmentName:
+        al.holderDepartment?.name ?? al.holderUser?.department?.name ?? null,
+      allocatedAt: al.allocatedAt.toISOString(),
+      expectedReturnDate: al.expectedReturnDate
+        ? al.expectedReturnDate.toISOString().split('T')[0]
+        : null,
+      returnedAt: al.actualReturnDate ? al.actualReturnDate.toISOString() : null,
+      returnConditionNotes: al.returnConditionNotes,
+      status: isOverdue ? 'overdue' : 'active',
+    };
+  });
+};
+
+/**
+ * List all transfer requests (with asset and user details)
+ */
+const listTransferRequests = async (requestingUser) => {
+  const whereClause = {};
+
+  if (requestingUser.role === 'DepartmentHead') {
+    whereClause.OR = [
+      { requestedByUser: { departmentId: requestingUser.departmentId } },
+      { requestedToDepartmentId: requestingUser.departmentId },
+      { requestedToUser: { departmentId: requestingUser.departmentId } }
+    ];
+  } else if (requestingUser.role === 'Employee') {
+    whereClause.OR = [
+      { requestedByUserId: requestingUser.id },
+      { requestedToUserId: requestingUser.id }
+    ];
+  }
+
+  const requests = await prisma.transferRequest.findMany({
+    where: whereClause,
+    include: {
+      asset: { select: { id: true, assetTag: true, name: true } },
+      requestedByUser: { select: { id: true, name: true } },
+      requestedToUser: { select: { id: true, name: true } },
+      requestedToDepartment: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return requests.map((tr) => ({
+    id: tr.id,
+    assetId: tr.assetId,
+    assetTag: tr.asset?.assetTag ?? '',
+    assetName: tr.asset?.name ?? '',
+    fromUserId: tr.requestedByUserId,
+    fromUserName: tr.requestedByUser?.name ?? 'Unknown',
+    requestedToUserId: tr.requestedToUserId,
+    requestedToUserName: tr.requestedToUser?.name ?? null,
+    requestedToDepartmentId: tr.requestedToDepartmentId,
+    requestedToDepartmentName: tr.requestedToDepartment?.name ?? null,
+    reason: tr.reason,
+    status: tr.status === 'Requested' ? 'pending'
+           : tr.status === 'ReAllocated' ? 'approved'
+           : 'rejected',
+    createdAt: tr.createdAt.toISOString(),
+  }));
+};
+
 module.exports = {
   createAllocation,
   returnAllocation,
   createTransferRequest,
   approveTransferRequest,
   rejectTransferRequest,
+  listAllocations,
+  listTransferRequests,
 };

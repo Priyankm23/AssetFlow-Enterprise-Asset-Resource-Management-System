@@ -28,6 +28,7 @@ const errorHandler = (err, req, res, next) => {
       message: err.message || 'An unexpected error occurred',
       ...(err.details && { details: err.details }), // include validation details (e.g., Zod) if available
       ...(err.currentHolder && { currentHolder: err.currentHolder }),
+      ...(err.conflictingBooking && { conflictingBooking: err.conflictingBooking }),
       ...(config.NODE_ENV === 'development' && { stack: err.stack }),
     },
   });
